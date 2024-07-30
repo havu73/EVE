@@ -35,7 +35,7 @@ Along the way, I cleaned up the structure of EVE's code, shorten functions, adde
 The input data should look like: 
 
 ![Figure 2: Input into ncEVE](screenshots/input_ncEVE.png)
-<span style="font-size: smaller;">Input into ncEVE, first 3 columns include data about the position in the genome of the variant of interest, and the following columns show the letters (A, C, T, G) or alignment failure (X) in each of the other 100 species with the human genome. </span>
+<sub><sup>Input into ncEVE, first 3 columns include data about the position in the genome of the variant of interest, and the following columns show the letters (A, C, T, G) or alignment failure (X) in each of the other 100 species with the human genome. </sub></sup>
 
 The output data file ```evol_indices/<user_defined_fn>.txt.gz``` storing the unnormalized probability of each genomic variant present at each genomic position of interest: 
 
