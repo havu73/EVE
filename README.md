@@ -19,7 +19,7 @@ Back in 2022, I was in search of the next project in research. I learned about t
 *The ncEVE idea did not pan out as effective for the intended purpose because I did not find the prediction from ncEVE more informative than other measures of evolutionary constraint of genetic variants, such as [consHMM](https://www.nature.com/articles/s42003-019-0488-1). However, I still share the code of of this exploration here for archival and show-case for people who potentially evaluate my capacity with data analysis and ```pytorch```.*
 
 ## Code changes and files 
-Along the way, I cleaned up the structure of EVE's code, shorten functions, added functions to save different model entities and of course, changed the data-loader and output format. I also added ```utils```  which contains code (```python``` and ```snakemake```) to process input data from multi-sequece alignment. File structure of an ncEVE model: 
+Along the way, I cleaned up the structure of EVE's code in ```EVE``` folder, shorten functions, added functions to save different model entities and of course, changed the data-loader and output format. I also added ```utils```  which contains code (```python``` and ```snakemake```) to process input data from multi-sequece alignment. File structure of an ncEVE model: 
 ```
 ├── evol_indices
 │   ├── test_data_recon_prob.txt.gz: unnomalized reconstruction probabilities, i.e. probabilities that each genetic variant should be present based on the trained model. Since the prob. are not normalized, the sum across 4 different possible bases A,C,T,G does not sum to 1
