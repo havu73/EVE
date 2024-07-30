@@ -51,7 +51,7 @@ In an analysis, I found out that if I apply PCA on the predictions across all 4 
 
 
 ## Maintenance
-Since this project serves as my own exploration that never panned off to publications, I do not maintain this code and hence do not provide installation instructions. But, if you find that this can serve as starting point for your own research and want to adapt my code/ want updated features to the code, please reach out. 
+Since this project serves as my own exploration that never panned off to publications, I do not maintain this code and hence do not provide installation instructions. But, if you find that this can serve as starting point for your own research and want to adapt my code/ want updated features to the code, please open Github tickets(?). 
 
 ## References
 ```
