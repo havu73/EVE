@@ -7,10 +7,9 @@ Back in 2022, I was in search of the next project in research. I learned about t
 
 
 **EVE**: Fraser et al. trained a Bayesian Variational Autoencoder (VAE) to reconstruct the alignment of amino acid sequences between human and other species. **Hence, each model is trained on a single-protein's sequence alignment**. The original model focuses on coding sequences, leveraging evolutionary data to predict the impact of amino acid changes on protein function and associated disease risk.
-<!-- ![Figure 1: EVE framework, cited from Fig. 1 of Frazer et al., 2021](screenshots/EVE_fig1.png) -->
 
 <p align="center">
-  <img src="screenshots/EVE_fig1.png" alt="Figure 1" style="width:50%;">
+  <img src="screenshots/EVE_fig1.png" alt="Figure 1" style="width:70%;">
 </p>
 
 <sub>Figure 1: EVE framework, cited from [Fig. 1 from Frazer et al., 2021](https://www.nature.com/articles/s41586-021-04043-8/figures/1)</sub>
