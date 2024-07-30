@@ -1,0 +1,12 @@
+raw_emission_fn: '/u/home/h/havu73/project-ernst/program_source/ConsHMM/models/hg19_multiz100way/emissions_100.txt'
+consHMM_state_reorder_fn: '/u/home/h/havu73/project-ernst/program_source/ConsHMM/stateRenamingFiles/hg19_multiz100way_state_renaming_100.tsv'
+correct_emission_fn: '/u/home/h/havu73/project-ernst/ncEVE_project/training_data/simulation/consHMM_emission.txt'
+simulation_folder: '/u/home/h/havu73/project-ernst/ncEVE_project/simulation'
+train_seed: 731995
+test_seed: 2231994
+consHMM_state_to_simulate: [1, 2, 50, 74, 97]
+num_bp_per_state_to_simulate: 10000
+refSpec_name: 'hg19'
+sample_simulate_msa_fn: '~/project-ernst/ncEVE_project/training_data/onePercent/sampled_msa_gw.txt.gz'
+pretrain_model_fn: '/u/home/h/havu73/project-ernst/ncEVE_project/models/simulation/VAE_parameters/simulation_step_41000'
+model_parameters_location: '/u/home/h/havu73/project-ernst/source_eve_rep/ncEVE/EVE/model_params_Bayse.json'

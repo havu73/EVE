@@ -9,7 +9,7 @@ class VAE_Bayesian_MLP_decoder(nn.Module):
     def __init__(self, params):
         """
         Required input parameters:
-        - seq_len: (Int) Sequence length of sequence alignment
+        - num_species: (Int) Sequence length of sequence alignment
         - alphabet_size: (Int) Alphabet size of sequence alignment (will be driven by the data helper object)
         - hidden_layers_sizes: (List) List of the sizes of the hidden layers (all DNNs)
         - z_dim: (Int) Dimension of latent space
@@ -25,7 +25,7 @@ class VAE_Bayesian_MLP_decoder(nn.Module):
         """
         super().__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.seq_len = params['seq_len']
+        self.num_species = params['num_species']
         self.alphabet_size = params['alphabet_size']
         self.hidden_layers_sizes = params['hidden_layers_sizes']
         self.z_dim = params['z_dim']
@@ -91,17 +91,17 @@ class VAE_Bayesian_MLP_decoder(nn.Module):
             self.channel_size = self.alphabet_size
         
         if self.include_sparsity:
-            self.sparsity_weight_mean = nn.Parameter(torch.zeros(int(self.hidden_layers_sizes[-1]/self.num_tiles_sparsity), self.seq_len))
-            self.sparsity_weight_log_var = nn.Parameter(torch.ones(int(self.hidden_layers_sizes[-1]/self.num_tiles_sparsity), self.seq_len))
+            self.sparsity_weight_mean = nn.Parameter(torch.zeros(int(self.hidden_layers_sizes[-1]/self.num_tiles_sparsity), self.num_species))
+            self.sparsity_weight_log_var = nn.Parameter(torch.ones(int(self.hidden_layers_sizes[-1]/self.num_tiles_sparsity), self.num_species))
             nn.init.constant_(self.sparsity_weight_log_var, self.logvar_init)
 
-        self.last_hidden_layer_weight_mean = nn.Parameter(torch.zeros(self.channel_size * self.seq_len,self.hidden_layers_sizes[-1]))
-        self.last_hidden_layer_weight_log_var = nn.Parameter(torch.zeros(self.channel_size * self.seq_len,self.hidden_layers_sizes[-1]))
+        self.last_hidden_layer_weight_mean = nn.Parameter(torch.zeros(self.channel_size * self.num_species,self.hidden_layers_sizes[-1]))
+        self.last_hidden_layer_weight_log_var = nn.Parameter(torch.zeros(self.channel_size * self.num_species,self.hidden_layers_sizes[-1]))
         nn.init.xavier_normal_(self.last_hidden_layer_weight_mean) #Glorot initialization
         nn.init.constant_(self.last_hidden_layer_weight_log_var, self.logvar_init)
 
-        self.last_hidden_layer_bias_mean = nn.Parameter(torch.zeros(self.alphabet_size * self.seq_len))
-        self.last_hidden_layer_bias_log_var = nn.Parameter(torch.zeros(self.alphabet_size * self.seq_len))
+        self.last_hidden_layer_bias_mean = nn.Parameter(torch.zeros(self.alphabet_size * self.num_species))
+        self.last_hidden_layer_bias_log_var = nn.Parameter(torch.zeros(self.alphabet_size * self.num_species))
         nn.init.constant_(self.last_hidden_layer_bias_mean, self.mu_bias_init)
         nn.init.constant_(self.last_hidden_layer_bias_log_var, self.logvar_init)
         
@@ -143,17 +143,17 @@ class VAE_Bayesian_MLP_decoder(nn.Module):
 
         if self.convolve_output:
             output_convolution_weight = self.sampler(self.output_convolution_mean.weight, self.output_convolution_log_var.weight)
-            W_out = torch.mm(W_out.view(self.seq_len * self.hidden_layers_sizes[-1], self.channel_size), 
-                                    output_convolution_weight.view(self.channel_size,self.alphabet_size)) #product of size (H * seq_len, alphabet)
+            W_out = torch.mm(W_out.view(self.num_species * self.hidden_layers_sizes[-1], self.channel_size), 
+                                    output_convolution_weight.view(self.channel_size,self.alphabet_size)) #product of size (H * num_species, alphabet)
             
         if self.include_sparsity:
             sparsity_weights = self.sampler(self.sparsity_weight_mean,self.sparsity_weight_log_var)
             sparsity_tiled = sparsity_weights.repeat(self.num_tiles_sparsity,1) 
             sparsity_tiled = nn.Sigmoid()(sparsity_tiled).unsqueeze(2) 
 
-            W_out = W_out.view(self.hidden_layers_sizes[-1], self.seq_len, self.alphabet_size) * sparsity_tiled
+            W_out = W_out.view(self.hidden_layers_sizes[-1], self.num_species, self.alphabet_size) * sparsity_tiled
         
-        W_out = W_out.view(self.seq_len * self.alphabet_size, self.hidden_layers_sizes[-1])
+        W_out = W_out.view(self.num_species * self.alphabet_size, self.hidden_layers_sizes[-1])
         
         x = F.linear(x, weight=W_out, bias=b_out)
 
@@ -161,8 +161,8 @@ class VAE_Bayesian_MLP_decoder(nn.Module):
             temperature_scaler = self.sampler(self.temperature_scaler_mean,self.temperature_scaler_log_var)
             x = torch.log(1.0+torch.exp(temperature_scaler)) * x
 
-        x = x.view(batch_size, self.seq_len, self.alphabet_size)
-        x_recon_log = F.log_softmax(x, dim=-1) #of shape (batch_size, seq_len, alphabet)
+        x = x.view(batch_size, self.num_species, self.alphabet_size)
+        x_recon_log = F.log_softmax(x, dim=-1) #of shape (batch_size, num_species, alphabet)
 
         return x_recon_log
 
@@ -170,11 +170,10 @@ class VAE_Standard_MLP_decoder(nn.Module):
     """
     Standard MLP decoder class for the VAE model.
     """
-    def __init__(self, seq_len, alphabet_size, hidden_layers_sizes, z_dim, first_hidden_nonlinearity, last_hidden_nonlinearity, dropout_proba,
-                 convolve_output, convolution_depth, include_temperature_scaler, include_sparsity, num_tiles_sparsity):
+    def __init__(self, params):
         """
         Required input parameters:
-        - seq_len: (Int) Sequence length of sequence alignment
+        - num_species: (Int) Sequence length of sequence alignment
         - alphabet_size: (Int) Alphabet size of sequence alignment (will be driven by the data helper object)
         - hidden_layers_sizes: (List) List of the sizes of the hidden layers (all DNNs)
         - z_dim: (Int) Dimension of latent space
@@ -190,14 +189,14 @@ class VAE_Standard_MLP_decoder(nn.Module):
         """
         super().__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.seq_len = params['seq_len']
+        self.num_species = params['num_species']
         self.alphabet_size = params['alphabet_size']
         self.hidden_layers_sizes = params['hidden_layers_sizes']
         self.z_dim = params['z_dim']
         self.bayesian_decoder = False
         self.dropout_proba = params['dropout_proba']
         self.convolve_output = params['convolve_output']
-        self.convolution_depth = params['convolution_depth']
+        self.convolution_depth = params['convolution_output_depth']
         self.include_temperature_scaler = params['include_temperature_scaler']
         self.include_sparsity = params['include_sparsity']
         self.num_tiles_sparsity = params['num_tiles_sparsity']
@@ -245,11 +244,11 @@ class VAE_Standard_MLP_decoder(nn.Module):
             self.channel_size = self.alphabet_size
         
         if self.include_sparsity:
-            self.sparsity_weight = nn.Parameter(torch.randn(int(self.hidden_layers_sizes[-1]/self.num_tiles_sparsity), self.seq_len))
+            self.sparsity_weight = nn.Parameter(torch.randn(int(self.hidden_layers_sizes[-1]/self.num_tiles_sparsity), self.num_species))
 
-        self.W_out = nn.Parameter(torch.zeros(self.channel_size * self.seq_len,self.hidden_layers_sizes[-1]))
+        self.W_out = nn.Parameter(torch.zeros(self.channel_size * self.num_species,self.hidden_layers_sizes[-1]))
         nn.init.xavier_normal_(self.W_out) #Initialize weights with Glorot initialization
-        self.b_out = nn.Parameter(torch.zeros(self.alphabet_size * self.seq_len))
+        self.b_out = nn.Parameter(torch.zeros(self.alphabet_size * self.num_species))
         nn.init.constant_(self.b_out, self.mu_bias_init)
         
         if self.include_temperature_scaler:
@@ -274,22 +273,22 @@ class VAE_Standard_MLP_decoder(nn.Module):
         W_out = self.W_out.data
 
         if self.convolve_output:
-            W_out = torch.mm(W_out.view(self.seq_len * self.hidden_layers_sizes[-1], self.channel_size), 
+            W_out = torch.mm(W_out.view(self.num_species * self.hidden_layers_sizes[-1], self.channel_size), 
                                     self.output_convolution.weight.view(self.channel_size,self.alphabet_size))
 
         if self.include_sparsity:
-            sparsity_tiled = self.sparsity_weight.repeat(self.num_tiles_sparsity,1) #of size (H,seq_len)
-            sparsity_tiled = nn.Sigmoid()(sparsity_tiled).unsqueeze(2) #of size (H,seq_len,1)
-            W_out = W_out.view(self.hidden_layers_sizes[-1], self.seq_len, self.alphabet_size) * sparsity_tiled
+            sparsity_tiled = self.sparsity_weight.repeat(self.num_tiles_sparsity,1) #of size (H,num_species)
+            sparsity_tiled = nn.Sigmoid()(sparsity_tiled).unsqueeze(2) #of size (H,num_species,1)
+            W_out = W_out.view(self.hidden_layers_sizes[-1], self.num_species, self.alphabet_size) * sparsity_tiled
 
-        W_out = W_out.view(self.seq_len * self.alphabet_size, self.hidden_layers_sizes[-1])
+        W_out = W_out.view(self.num_species * self.alphabet_size, self.hidden_layers_sizes[-1])
 
         x = F.linear(x, weight=W_out, bias=self.b_out)
 
         if self.include_temperature_scaler:
             x = torch.log(1.0+torch.exp(self.temperature_scaler)) * x
 
-        x = x.view(batch_size, self.seq_len, self.alphabet_size)
-        x_recon_log = F.log_softmax(x, dim=-1) #of shape (batch_size, seq_len, alphabet)
+        x = x.view(batch_size, self.num_species, self.alphabet_size)
+        x_recon_log = F.log_softmax(x, dim=-1) #of shape (batch_size, num_species, alphabet)
 
         return x_recon_log

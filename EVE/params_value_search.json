@@ -1,0 +1,11 @@
+{   "decoder_parameters": {
+        "bayesian_decoder"                    :   [true, false]
+    },
+    "training_parameters": {
+        "annealing_warm_up"                 :   [0, 100]
+    }
+}
+
+
+
+

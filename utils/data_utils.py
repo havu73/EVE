@@ -5,193 +5,97 @@ import os
 import torch
 import tqdm
 
+def compute_weight(seq):
+    number_non_empty_positions = np.dot(seq,seq)
+    if number_non_empty_positions>0:
+        denom = np.dot(list_seq,seq) / np.dot(seq,seq) 
+        denom = np.sum(denom > 1 - self.theta) 
+        return 1/denom
+    else:
+        return 0.0 #return 0 weight if sequence is fully empty
+
 class MSA_processing:
     def __init__(self,
-        MSA_location="",
-        theta=0.2,
-        use_weights=True,
-        weights_location="./data/weights",
-        preprocess_MSA=True,
-        threshold_sequence_frac_gaps=0.5,
-        threshold_focus_cols_frac_gaps=0.3,
-        remove_sequences_with_indeterminate_AA_in_focus_cols=True
+        msa_data_fn="",
+        seed = 731995,
+        create_msa_for_evol_indices_calculation = False,
+        refSpec_colname = 'hg19'
         ):
         
         """
         Parameters:
-        - msa_location: (path) Location of the MSA data. Constraints on input MSA format: 
-            - focus_sequence is the first one in the MSA data
-            - first line is structured as follows: ">focus_seq_name/start_pos-end_pos" (e.g., >SPIKE_SARS2/310-550)
-            - corespondding sequence data located on following line(s)
-            - then all other sequences follow with ">name" on first line, corresponding data on subsequent lines
-        - theta: (float) Sequence weighting hyperparameter. Generally: Prokaryotic and eukaryotic families =  0.2; Viruses = 0.01
-        - use_weights: (bool) If False, sets all sequence weights to 1. If True, checks weights_location -- if non empty uses that; 
-            otherwise compute weights from scratch and store them at weights_location
-        - weights_location: (path) Location to load from/save to the sequence weights
-        - preprocess_MSA: (bool) performs pre-processing of MSA to remove short fragments and positions that are not well covered.
-        - threshold_sequence_frac_gaps: (float, between 0 and 1) Threshold value to define fragments
-            - sequences with a fraction of gap characters above threshold_sequence_frac_gaps are removed
-            - default is set to 0.5 (i.e., fragments with 50% or more gaps are removed)
-        - threshold_focus_cols_frac_gaps: (float, between 0 and 1) Threshold value to define focus columns
-            - positions with a fraction of gap characters above threshold_focus_cols_pct_gaps will be set to lower case (and not included in the focus_cols)
-            - default is set to 0.3 (i.e., focus positions are the ones with 30% of gaps or less, i.e., 70% or more residue occupancy)
-        - remove_sequences_with_indeterminate_AA_in_focus_cols: (bool) Remove all sequences that have indeterminate AA (e.g., B, J, X, Z) at focus positions of the wild type
+        - msa_data_fn: (path) Location of the MSA data, sampled using consHMM data, outputted by create_ideal_training_data.py
+        - seed: random seed, for reproducibility 
+        - msa_file_suffix: quite redudant right now but let's keep it at that
+        - create_msa_for_evol_indices_calculation: if set to True, it will declare an attribute genPos_df that records the genome position in msa_data_fn. This will be useful when we record the evol_score for genetic variants
         """
-        np.random.seed(2021)
-        self.MSA_location = MSA_location
-        self.weights_location = weights_location
-        self.theta = theta
-        self.alphabet = "ACDEFGHIKLMNPQRSTVWY"
-        self.use_weights = use_weights
-        self.preprocess_MSA = preprocess_MSA
-        self.threshold_sequence_frac_gaps = threshold_sequence_frac_gaps
-        self.threshold_focus_cols_frac_gaps = threshold_focus_cols_frac_gaps
-        self.remove_sequences_with_indeterminate_AA_in_focus_cols = remove_sequences_with_indeterminate_AA_in_focus_cols
-
-        self.gen_alignment()
-        self.create_all_singles()
-
-    def gen_alignment(self):
-        """ Read training alignment and store basics in class instance """
-        self.aa_dict = {}
-        for i,aa in enumerate(self.alphabet):
-            self.aa_dict[aa] = i
-
-        self.seq_name_to_sequence = defaultdict(str)
-        name = ""
-        with open(self.MSA_location, "r") as msa_data:
-            for i, line in enumerate(msa_data):
-                line = line.rstrip()
-                if line.startswith(">"):
-                    name = line
-                    if i==0:
-                        self.focus_seq_name = name
-                else:
-                    self.seq_name_to_sequence[name] += line
-
-        
-        ## MSA pre-processing to remove inadequate columns and sequences
-        if self.preprocess_MSA:
-            msa_df = pd.DataFrame.from_dict(self.seq_name_to_sequence, orient='index', columns=['sequence'])
-            # Data clean up
-            msa_df.sequence = msa_df.sequence.apply(lambda x: x.replace(".","-")).apply(lambda x: ''.join([aa.upper() for aa in x]))
-            # Remove columns that would be gaps in the wild type
-            non_gap_wt_cols = [aa!='-' for aa in msa_df.sequence[self.focus_seq_name]]
-            msa_df['sequence'] = msa_df['sequence'].apply(lambda x: ''.join([aa for aa,non_gap_ind in zip(x, non_gap_wt_cols) if non_gap_ind]))
-            assert 0.0 <= self.threshold_sequence_frac_gaps <= 1.0,"Invalid fragment filtering parameter"
-            assert 0.0 <= self.threshold_focus_cols_frac_gaps <= 1.0,"Invalid focus position filtering parameter"
-            msa_array = np.array([list(seq) for seq in msa_df.sequence])
-            gaps_array = np.array(list(map(lambda seq: [aa=='-' for aa in seq], msa_array)))
-            # Identify fragments with too many gaps
-            seq_gaps_frac = gaps_array.mean(axis=1)
-            seq_below_threshold = seq_gaps_frac <= self.threshold_sequence_frac_gaps
-            print("Proportion of sequences dropped due to fraction of gaps: "+str(round(float(1 - seq_below_threshold.sum()/seq_below_threshold.shape)*100,2))+"%")
-            # Identify focus columns
-            columns_gaps_frac = gaps_array[seq_below_threshold].mean(axis=0)
-            index_cols_below_threshold = columns_gaps_frac <= self.threshold_focus_cols_frac_gaps
-            print("Proportion of non-focus columns removed: "+str(round(float(1 - index_cols_below_threshold.sum()/index_cols_below_threshold.shape)*100,2))+"%")
-            # Lower case non focus cols and filter fragment sequences
-            msa_df['sequence'] = msa_df['sequence'].apply(lambda x: ''.join([aa.upper() if upper_case_ind else aa.lower() for aa, upper_case_ind in zip(x, index_cols_below_threshold)]))
-            msa_df = msa_df[seq_below_threshold]
-            # Overwrite seq_name_to_sequence with clean version
-            self.seq_name_to_sequence = defaultdict(str)
-            for seq_idx in range(len(msa_df['sequence'])):
-                self.seq_name_to_sequence[msa_df.index[seq_idx]] = msa_df.sequence[seq_idx]
-
-        self.focus_seq = self.seq_name_to_sequence[self.focus_seq_name]
-        self.focus_cols = [ix for ix, s in enumerate(self.focus_seq) if s == s.upper() and s!='-'] 
-        self.focus_seq_trimmed = [self.focus_seq[ix] for ix in self.focus_cols]
-        self.seq_len = len(self.focus_cols)
+        self.seed = seed
+        torch.manual_seed(self.seed)
+        self.msa_data_fn = msa_data_fn # this file should be the results of the code create_ideal_training_data.py
+        self.create_msa_for_evol_indices_calculation = create_msa_for_evol_indices_calculation
+        self.refSpec_colname = refSpec_colname
+        self.alphabet = "ACTGXN"
         self.alphabet_size = len(self.alphabet)
-
-        # Connect local sequence index with uniprot index (index shift inferred from 1st row of MSA)
-        focus_loc = self.focus_seq_name.split("/")[-1]
-        start,stop = focus_loc.split("-")
-        self.focus_start_loc = int(start)
-        self.focus_stop_loc = int(stop)
-        self.uniprot_focus_col_to_wt_aa_dict \
-            = {idx_col+int(start):self.focus_seq[idx_col] for idx_col in self.focus_cols} 
-        self.uniprot_focus_col_to_focus_idx \
-            = {idx_col+int(start):idx_col for idx_col in self.focus_cols} 
-
-        # Move all letters to CAPS; keeps focus columns only
-        for seq_name,sequence in self.seq_name_to_sequence.items():
-            sequence = sequence.replace(".","-")
-            self.seq_name_to_sequence[seq_name] = [sequence[ix].upper() for ix in self.focus_cols]
-
-        # Remove sequences that have indeterminate AA (e.g., B, J, X, Z) in the focus columns
-        if self.remove_sequences_with_indeterminate_AA_in_focus_cols:
-            alphabet_set = set(list(self.alphabet))
-            seq_names_to_remove = []
-            for seq_name,sequence in self.seq_name_to_sequence.items():
-                for letter in sequence:
-                    if letter not in alphabet_set and letter != "-":
-                        seq_names_to_remove.append(seq_name)
-                        continue
-            seq_names_to_remove = list(set(seq_names_to_remove))
-            for seq_name in seq_names_to_remove:
-                del self.seq_name_to_sequence[seq_name]
-
-        # Encode the sequences
-        print ("Encoding sequences")
-        self.one_hot_encoding = np.zeros((len(self.seq_name_to_sequence.keys()),len(self.focus_cols),len(self.alphabet)))
-        for i,seq_name in enumerate(self.seq_name_to_sequence.keys()):
-            sequence = self.seq_name_to_sequence[seq_name]
-            for j,letter in enumerate(sequence):
-                if letter in self.aa_dict: 
-                    k = self.aa_dict[letter]
-                    self.one_hot_encoding[i,j,k] = 1.0
-
-        if self.use_weights:
-            try:
-                self.weights = np.load(file=self.weights_location)
-                print("Loaded sequence weights from disk")
-            except:
-                print ("Computing sequence weights")
-                list_seq = self.one_hot_encoding
-                list_seq = list_seq.reshape((list_seq.shape[0], list_seq.shape[1] * list_seq.shape[2]))
-                def compute_weight(seq):
-                    number_non_empty_positions = np.dot(seq,seq)
-                    if number_non_empty_positions>0:
-                        denom = np.dot(list_seq,seq) / np.dot(seq,seq) 
-                        denom = np.sum(denom > 1 - self.theta) 
-                        return 1/denom
-                    else:
-                        return 0.0 #return 0 weight if sequence is fully empty
-                self.weights = np.array(list(map(compute_weight,list_seq)))
-                np.save(file=self.weights_location, arr=self.weights)
+        self.refGen_alphabet = self.alphabet[:4]
+        self.get_nu_dict()
+        self.chrom_list = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', 'X', 'Y'] 
+        if self.create_msa_for_evol_indices_calculation:
+            self.create_single_mutation_msa_data() # declare self.msa_df, self.genPos_df, self.num_genomic_position, self.num_species, self.reference_species_index
         else:
-            # If not using weights, use an isotropic weight matrix
-            print("Not weighting sequence data")
-            self.weights = np.ones(self.one_hot_encoding.shape[0])
+            self.read_in_msa_for_training() # read in data of multi-species sequence alignment
+            # declare self.msa_df, self.genPos_df, self.num_genomic_position, self.num_species, self.reference_species_index
+        print('Done reading in input tensor. Done declaring data')
 
-        self.Neff = np.sum(self.weights)
-        self.num_sequences = self.one_hot_encoding.shape[0]
 
-        print ("Neff =",str(self.Neff))
-        print ("Data Shape =",self.one_hot_encoding.shape)
-    
-    def create_all_singles(self):
-        start_idx = self.focus_start_loc
-        focus_seq_index = 0
-        self.mutant_to_letter_pos_idx_focus_list = {}
-        list_valid_mutations = []
-        # find all possible valid mutations that can be run with this alignment
-        alphabet_set = set(list(self.alphabet))
-        for i,letter in enumerate(self.focus_seq):
-            if letter in alphabet_set and letter != "-":
-                for mut in self.alphabet:
-                    pos = start_idx+i
-                    if mut != letter:
-                        mutant = letter+str(pos)+mut
-                        self.mutant_to_letter_pos_idx_focus_list[mutant] = [letter, pos, focus_seq_index]
-                        list_valid_mutations.append(mutant)
-                focus_seq_index += 1   
-        self.all_single_mutations = list_valid_mutations
+    def get_nu_dict(self):
+        self.nu_dict = {}
+        for i,nu in enumerate(self.alphabet):
+            self.nu_dict[nu] = int(i)
+        return 
 
-    def save_all_singles(self, output_filename):
-        with open(output_filename, "w") as output:
-            output.write('mutations')
-            for mutation in self.all_single_mutations:
-                output.write('\n')
-                output.write(mutation)
+
+    def read_raw_msa(self):
+        self.msa_df = pd.read_csv(self.msa_data_fn, header = 0, index_col = None, sep = '\t', comment = '#') 
+        self.msa_df = self.msa_df[self.msa_df[self.refSpec_colname] != 'N']
+        try: # this case happens if the data is produced for trainings
+            self.msa_df.rename({'chosen_bp': 'bp'}, axis = 1, inplace = True)
+            # self.msa_df.drop(columns = ['state'], axis = 'columns', inplace = True)
+        except: 
+            pass
+        try: # this case happens if the data is produced for getting evol_indices
+            # if self.create_msa_for_evol_indices_calculation == True:
+            self.genPos_df = self.msa_df[['chrom', 'bp', 'state', self.refSpec_colname]] # refSpec_colname is likly hg19 for our project 
+            self.msa_df.drop(columns = ['chrom', 'bp', 'state'], axis = 'columns', inplace = True) # columns are simply names of different species #HAHAHAHA: edit this chrom',
+        except:
+            pass
+        self.msa_df = self.msa_df.applymap(lambda x: self.nu_dict[x]) # a dataframe of just integers, converting the msa data into numbers just like [genPos, species]
+        self.num_genomic_position = self.msa_df.shape[0]
+        self.num_species = self.msa_df.shape[1] # number of columns: number of species
+        self.reference_species_index = self.msa_df.columns.get_loc(self.refSpec_colname) # column index of the reference species (most likely hg19). This parameter is helpful when we try to create data of all types of SNPs' multi-species alignment, and hes to be declared here before we change the data into pytorch tensor and the colnames will disappear
+        return 
+
+    def read_in_msa_for_training(self):
+        self.read_raw_msa() # declare self.msa_df, self.genPos_df, self.num_genomic_position, self.num_species, self.reference_species_index
+        self.msa_df = torch.tensor(self.msa_df.values) # convert  the dataframe to a pytorch tensor, [position][species]
+        return 
+
+    def create_single_mutation_msa_data(self):
+        self.read_raw_msa() # declare self.msa_df, self.genPos_df, self.num_genomic_position, self.num_species, self.reference_species_index
+        num_repeat_per_nu = len(self.refGen_alphabet) # 4
+        self.msa_df = self.msa_df.loc[self.msa_df.index.repeat(num_repeat_per_nu)].reset_index(drop = True) # for each row in the original msa_df, repeat num_repeat_per_nu times such that every num_repeat_per_nu consecutive rows are exactly similar. This would blow up the size of msa_df num_repeat_per_nu times. Reference: https://stackoverflow.com/questions/49074021/repeat-rows-in-data-frame-n-times
+        refSpec_variants = list(range(num_repeat_per_nu)) * self.num_genomic_position # [0,1,2,3, 0,1,2,3, 0,1,2,3, etc.] --> record all forms of genetic variants for each genomic position
+        self.msa_df.loc[:, self.refSpec_colname] = refSpec_variants
+        self.msa_df = torch.tensor(self.msa_df.values) # convert  the dataframe to a pytorch tensor, [position][species]
+        return 
+
+    def one_hot_encoding_seq(self):
+        '''
+        Given the size of the data, I am not sure if it is a good idea to call on this function. Keep it here for documentation purposes
+        '''
+        self.msa_df = torch.nn.functional.one_hot(self.msa_df, num_classes = self.alphabet_size) # [position][species][nucleotide]
+
+    def __getitem__(self, index):
+        return torch.nn.functional.one_hot(self.msa_df[index], num_classes = self.alphabet_size) # here index refers to the genomic positoin, so the output should be of size #_animal, #_alphabet
+
+    def __len__(self):
+        return self.msa_df.shape[0] # return number of bp in the dataset

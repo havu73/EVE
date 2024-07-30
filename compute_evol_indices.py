@@ -3,95 +3,76 @@ import json
 import argparse
 import pandas as pd
 import torch
-
+import helper
 from EVE import VAE_model
 from utils import data_utils
+def calculate_evol_indices_one_row(row, refSpec_colname, all_bases):
+    '''
+    refSpec_colname: colname representing the reference species, showing the bp (ACTG) that are present in the refSpec's genome at the corresponding location
+    all_bases: ['A', 'C', 'T', 'G']
+    '''
+    row[all_bases] = row[all_bases] - row[row[refSpec_colname]]
+    return row
+
+def extract_evol_indices_from_model_output(msa_data, mean_elbos, output_evol_indices_fn, command_line):
+    '''
+    mean_elbos: (num_genomic_position, 4 (ACTG))
+    msa_data: created with the create_msa_for_evol_indices_calculation = True --> contains the msa_data.genPos_df with columns: chrom, chosen_bp, state, hg19
+    '''
+    result_df = msa_data.genPos_df.copy() # chrom, bp, hg19 (hg19 shows the bp at the corresponding position)
+    all_bases = list(msa_data.refGen_alphabet)
+    mean_elbos = pd.DataFrame(mean_elbos) # (num_genomic_position, 4 (ACTG)). Have to tranform to df because the following line would crash otherwise
+    result_df[all_bases] = mean_elbos
+    # result_df = result_df.apply(lambda row: calculate_evol_indices_one_row(row, msa_data.refSpec_colname, all_bases), axis = 1)
+    helper.save_gzip_dataframe_with_comment(result_df, command_line, output_evol_indices_fn)
+    return 
 
 if __name__=='__main__':
 
     parser = argparse.ArgumentParser(description='Evol indices')
-    parser.add_argument('--MSA_data_folder', type=str, help='Folder where MSAs are stored')
-    parser.add_argument('--MSA_list', type=str, help='List of proteins and corresponding MSA file name')
-    parser.add_argument('--protein_index', type=int, help='Row index of protein in input mapping file')
-    parser.add_argument('--MSA_weights_location', type=str, help='Location where weights for each sequence in the MSA will be stored')
-    parser.add_argument('--theta_reweighting', type=float, help='Parameters for MSA sequence re-weighting')
-    parser.add_argument('--VAE_checkpoint_location', type=str, help='Location where VAE model checkpoints will be stored')
-    parser.add_argument('--model_name_suffix', default='Jan1', type=str, help='model checkpoint name is the protein name followed by this suffix')
+    parser.add_argument('--msa_data_fn', type=str, help='Path to the sampled training data. This has been done by the code create_ideal_training_data.py as a separate step')
+    parser.add_argument('--VAE_pretrained_fn', type=str, help='Location where pre-trained VAE model checkpoints will be stored')
     parser.add_argument('--model_parameters_location', type=str, help='Location of VAE model parameters')
-    parser.add_argument('--computation_mode', type=str, help='Computes evol indices for all single AA mutations or for a passed in list of mutations (singles or multiples) [all_singles,input_mutations_list]')
-    parser.add_argument('--all_singles_mutations_folder', type=str, help='Location for the list of generated single AA mutations')
-    parser.add_argument('--mutations_location', type=str, help='Location of all mutations to compute the evol indices for')
-    parser.add_argument('--output_evol_indices_location', type=str, help='Output location of computed evol indices')
-    parser.add_argument('--output_evol_indices_filename_suffix', default='', type=str, help='(Optional) Suffix to be added to output filename')
+    parser.add_argument('--seed', type=int, default=731995, help='Random seed')
+    parser.add_argument('--output_evol_indices_fn', type=str, help='Output location of computed evol indices')
     parser.add_argument('--num_samples_compute_evol_indices', type=int, help='Num of samples to approximate delta elbo when computing evol indices')
     parser.add_argument('--batch_size', default=256, type=int, help='Batch size when computing evol indices')
+    parser.add_argument('--compute_recon_prob', action = 'store_true', default = False, help = 'If this flag is set, we will compute the reconstruction probabilities for each letter (ACTGXN) at each base')
     args = parser.parse_args()
+    helper.check_file_exist(args.msa_data_fn)
+    helper.check_file_exist(args.VAE_pretrained_fn)
+    helper.check_file_exist(args.model_parameters_location)
+    helper.create_folder_for_file(args.output_evol_indices_fn)
+    command_line = helper.print_command(sys.argv[0], args)
 
-    mapping_file = pd.read_csv(args.MSA_list)
-    protein_name = mapping_file['protein_name'][args.protein_index]
-    msa_location = args.MSA_data_folder + os.sep + mapping_file['msa_location'][args.protein_index]
-    print("Protein name: "+str(protein_name))
-    print("MSA file: "+str(msa_location))
-
-    if args.theta_reweighting is not None:
-        theta = args.theta_reweighting
-    else:
-        try:
-            theta = float(mapping_file['theta'][args.protein_index])
-        except:
-            theta = 0.2
-    print("Theta MSA re-weighting: "+str(theta))
-
+    torch.manual_seed(args.seed)
     data = data_utils.MSA_processing(
-            MSA_location=msa_location,
-            theta=theta,
-            use_weights=True,
-            weights_location=args.MSA_weights_location + os.sep + protein_name + '_theta_' + str(theta) + '.npy'
-    )
-    
-    if args.computation_mode=="all_singles":
-        data.save_all_singles(output_filename=args.all_singles_mutations_folder + os.sep + protein_name + "_all_singles.csv")
-        args.mutations_location = args.all_singles_mutations_folder + os.sep + protein_name + "_all_singles.csv"
-    else:
-        args.mutations_location = args.mutations_location + os.sep + protein_name + ".csv"
-        
-    model_name = protein_name + "_" + args.model_name_suffix
-    print("Model name: "+str(model_name))
+            msa_data_fn=args.msa_data_fn,
+            seed=args.seed,
+            create_msa_for_evol_indices_calculation = (not args.compute_recon_prob), 
+    ) # all the attributes of data: data.__dict__.keys()
+    print ("Done loading all input data")
 
     model_params = json.load(open(args.model_parameters_location))
-
+    model_name= 'trial'
     model = VAE_model.VAE_model(
                     model_name=model_name,
                     data=data,
                     encoder_parameters=model_params["encoder_parameters"],
                     decoder_parameters=model_params["decoder_parameters"],
-                    random_seed=42
-    )
+                    training_parameters=model_params['training_parameters'],
+                    random_seed=args.seed,
+                    pretrained_model = True)
     model = model.to(model.device)
 
-    try:
-        checkpoint_name = str(args.VAE_checkpoint_location) + os.sep + model_name + "_final"
-        checkpoint = torch.load(checkpoint_name)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        print("Initialized VAE with checkpoint '{}' ".format(checkpoint_name))
-    except:
-        print("Unable to locate VAE model checkpoint")
-        sys.exit(0)
-    
-    list_valid_mutations, evol_indices, _, _ = model.compute_evol_indices(msa_data=data,
-                                                    list_mutations_location=args.mutations_location, 
-                                                    num_samples=args.num_samples_compute_evol_indices,
-                                                    batch_size=args.batch_size)
+    model.load_pretrained_model(args.VAE_pretrained_fn)
+    print ("Done loading pre-trained VAE model")
 
-    df = {}
-    df['protein_name'] = protein_name
-    df['mutations'] = list_valid_mutations
-    df['evol_indices'] = evol_indices
-    df = pd.DataFrame(df)
-    
-    evol_indices_output_filename = args.output_evol_indices_location+os.sep+protein_name+'_'+str(args.num_samples_compute_evol_indices)+'_samples'+args.output_evol_indices_filename_suffix+'.csv'
-    try:
-        keep_header = os.stat(evol_indices_output_filename).st_size == 0
-    except:
-        keep_header=True 
-    df.to_csv(path_or_buf=evol_indices_output_filename, index=False, mode='a', header=keep_header)
+    mean_elbos = model.compute_reconstruction_prob_for_variants_data(msa_data=data,
+                            num_samples=args.num_samples_compute_evol_indices,
+                            batch_size=args.batch_size) # (num_genomic_position, 4 (ACTG))
+    print('Done calculating the mean_elbos for all variants')
+
+    # now we will report the results to a file
+    extract_evol_indices_from_model_output(data, mean_elbos, args.output_evol_indices_fn, command_line)
+    print('Done reporting the results into file {}'.format(args.output_evol_indices_fn))

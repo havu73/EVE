@@ -1,0 +1,12 @@
+msa_folder: /u/home/h/havu73/project-ernst/data/ucsc/multiSpec_align/from_adriana
+msa_file_suffix:  'maf_sequence.csv.gz'
+consHMM_folder: /u/home/h/havu73/project-ernst/data/ucsc/multiSpec_align/from_adriana/consHMM
+sampledReg_folder: /u/home/h/havu73/project-ernst/ncEVE_project/training_data
+subsample_folder: /u/home/h/havu73/project-ernst/ncEVE_project/training_data/onePercent
+window_around_selected_bp: 0
+seed: 731995
+num_bp_per_state: 300000
+num_consHMM_state: 100
+chrom_length_fn: /u/home/h/havu73/project-ernst/data/ucsc/hg19.chrom.sizes
+CHROMOSOME_LIST: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22'] 
+num_cores: 4

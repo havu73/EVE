@@ -8,7 +8,7 @@ class VAE_MLP_encoder(nn.Module):
     def __init__(self,params):
         """
         Required input parameters:
-        - seq_len: (Int) Sequence length of sequence alignment
+        - num_species: (Int) # of bp used for each training of the VAE (it's not necessarily a sequence of consecutive bp, they are just positions randomly sampled on the genome for training)
         - alphabet_size: (Int) Alphabet size of sequence alignment (will be driven by the data helper object)
         - hidden_layers_sizes: (List) List of sizes of DNN linear layers
         - z_dim: (Int) Size of latent space
@@ -19,7 +19,7 @@ class VAE_MLP_encoder(nn.Module):
         """
         super().__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.seq_len = params['seq_len']
+        self.num_species = params['num_species']
         self.alphabet_size = params['alphabet_size']
         self.hidden_layers_sizes = params['hidden_layers_sizes']
         self.z_dim = params['z_dim']
@@ -30,7 +30,7 @@ class VAE_MLP_encoder(nn.Module):
         self.mu_bias_init = 0.1
         self.log_var_bias_init = -10.0
 
-        #Convolving input with kernels of size 1 to capture potential similarities across amino acids when encoding sequences
+        # Convolving input with kernels of size 1 to capture potential similarities across amino acids when encoding sequences
         if self.convolve_input:
             self.input_convolution = nn.Conv1d(in_channels=self.alphabet_size,out_channels=self.convolution_depth,kernel_size=1,stride=1,bias=False)
             self.channel_size = self.convolution_depth
@@ -40,7 +40,7 @@ class VAE_MLP_encoder(nn.Module):
         self.hidden_layers=torch.nn.ModuleDict()
         for layer_index in range(len(self.hidden_layers_sizes)):
             if layer_index==0:
-                self.hidden_layers[str(layer_index)] = nn.Linear((self.channel_size*self.seq_len),self.hidden_layers_sizes[layer_index])
+                self.hidden_layers[str(layer_index)] = nn.Linear((self.channel_size*self.num_species),self.hidden_layers_sizes[layer_index])
                 nn.init.constant_(self.hidden_layers[str(layer_index)].bias, self.mu_bias_init)
             else:
                 self.hidden_layers[str(layer_index)] = nn.Linear(self.hidden_layers_sizes[layer_index-1],self.hidden_layers_sizes[layer_index])
@@ -73,9 +73,9 @@ class VAE_MLP_encoder(nn.Module):
         if self.convolve_input:
             x = x.permute(0,2,1) 
             x = self.input_convolution(x)
-            x = x.view(-1,self.seq_len*self.channel_size)
+            x = x.view(-1,self.num_species*self.channel_size)
         else:
-            x = x.view(-1,self.seq_len*self.channel_size) 
+            x = x.view(-1,self.num_species*self.channel_size) 
         
         for layer_index in range(len(self.hidden_layers_sizes)):
             x = self.nonlinear_activation(self.hidden_layers[str(layer_index)](x))
