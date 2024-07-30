@@ -9,7 +9,7 @@ Back in 2022, I was in search of the next project in research. I learned about t
 **EVE**: Fraser et al. trained a Bayesian Variational Autoencoder (VAE) to reconstruct the alignment of amino acid sequences between human and other species. **Hence, each model is trained on a single-protein's sequence alignment**. The original model focuses on coding sequences, leveraging evolutionary data to predict the impact of amino acid changes on protein function and associated disease risk.
 ![Figure 1: EVE framework, cited from Fig. 1 of Frazer et al., 2021](screenshots/EVE_fig1.png)
 
-Figure 1: EVE framework, cited from [Fig. 1 from Frazer et al., 2021](https://www.nature.com/articles/s41586-021-04043-8/figures/1)
+<small>Figure 1: EVE framework, cited from [Fig. 1 from Frazer et al., 2021](https://www.nature.com/articles/s41586-021-04043-8/figures/1)</small>
 
 **ncEVE**: I worked with whole genome sequence alignment between human and 100 other species in the animal kingdom in this project (data from UCSC Genome Browser's 100-multiway). Hence, for each window of $N$-bp in the genome, we can in principle apply similar frameworks applied in Frazer et al., 2021 to the non-coding sequence data. Non-coding sequences, while not directly altering protein sequences, can have significant regulatory roles and contribute to disease risk through mechanisms affecting gene expression, splicing, and other regulatory functions.
 
@@ -32,15 +32,20 @@ Along the way, I cleaned up the structure of EVE's code, shorten functions, adde
 The input data should look like: 
 
 ![Figure 2: Input into ncEVE](screenshots/input_ncEVE.png)
-Input into ncEVE, first 3 columns include data about the position in the genome of the variant of interest, and the following columns show the letters (A, C, T, G) or alignment failure (X) in each of the other 100 species with the human genome. 
+<small>Input into ncEVE, first 3 columns include data about the position in the genome of the variant of interest, and the following columns show the letters (A, C, T, G) or alignment failure (X) in each of the other 100 species with the human genome. </small>
 
 The output data file ```evol_indices/<user_defined_fn>.txt.gz``` storing the unnormalized probability of each genomic variant present at each genomic position of interest: 
 
 ![Figure 3: Output of ncEVE](screenshots/ncEVE_evol_prob.png)
-Output of ncEVE. Each column shows the information about the genomic position, the consHMM conservation states that the variant is in (if you dont know what that means, ignore it for now), and the probabilities that of each letter being present at each position. 
+<small>Output of ncEVE. Each column shows the information about the genomic position, the consHMM conservation states that the variant is in (if you dont know what that means, ignore it for now), and the probabilities that of each letter being present at each position. </small>
+
+In an analysis, I found out that if I apply PCA on the predictions across all 4 possible letters (ACTG), genomic positions that are in the same state can cluster together.
+![Figure 4: PCA on ncEVE's predictions for a set of genomic positions (points)](screenshots/pca_simulation_test_data.png)
+<small>Each dot corresponds to a genomic variants. Here, we applied PCA on the ncEVE's prediction as shown in Fig. 2 (each data point is represented in a vector of length 4: ACTG). Dots' color are based on the ConsHMM state of the genomic position. If you don't know what ConsHMM state is: state 1 represents genomic location that is highly conserved throughout evolution, and roughly speaking, the higher the state numbers, the less conserved the genomic location is, and hence less likelly to be pathogenic. For non-biologists: non-conserved positions mean a locations in the genome that is not conserved throughout evolution (i.e. not found in animals other than humans). Conseved postions tend to be more pathogenic bc variants to these positions can be lethal and hence never conserved throughout evolution.</small>
 
 
-
+## Maintenance
+Since this project serves as my own exploration that never panned off to publications, I do not maintain this code and hence do not provide installation instructions. But, if you find that this can serve as starting point for your own research and want to adapt my code/ want updated features to the code, please reach out. 
 
 ## References
 
