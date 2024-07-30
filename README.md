@@ -15,6 +15,7 @@ Back in 2022, I was in search of the next project in research. I learned about t
 
 *The ncEVE idea did not pan out as effective for the intended purpose because I did not find the prediction from ncEVE more informative than other measures of evolutionary constraint of genetic variants, such as [consHMM](https://www.nature.com/articles/s42003-019-0488-1). However, I still share the code of of this exploration here for archival and show-case for people who potentially evaluate my capacity with data analysis and ```pytorch```.*
 
+## Code changes and files 
 Along the way, I cleaned up the structure of EVE's code, shorten functions, added functions to save different model entities and of course, changed the data-loader and output format. I also added ```utils```  which contains code (```python``` and ```snakemake```) to process input data from multi-sequece alignment. File structure of an ncEVE model: 
 ```
 ├── evol_indices
@@ -29,10 +30,12 @@ Along the way, I cleaned up the structure of EVE's code, shorten functions, adde
 └── VAE_parameters
     └── simulation_step_41000: binary file storing the model parameters
 ```
+
+## Demo:
 The input data should look like: 
 
 ![Figure 2: Input into ncEVE](screenshots/input_ncEVE.png)
-<small>Input into ncEVE, first 3 columns include data about the position in the genome of the variant of interest, and the following columns show the letters (A, C, T, G) or alignment failure (X) in each of the other 100 species with the human genome. </small>
+<span style="font-size: smaller;">Input into ncEVE, first 3 columns include data about the position in the genome of the variant of interest, and the following columns show the letters (A, C, T, G) or alignment failure (X) in each of the other 100 species with the human genome. </span>
 
 The output data file ```evol_indices/<user_defined_fn>.txt.gz``` storing the unnormalized probability of each genomic variant present at each genomic position of interest: 
 
