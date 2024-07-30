@@ -40,20 +40,25 @@ The input data should look like:
 The output data file ```evol_indices/<user_defined_fn>.txt.gz``` storing the unnormalized probability of each genomic variant present at each genomic position of interest: 
 
 ![Figure 3: Output of ncEVE](screenshots/ncEVE_evol_prob.png)
-<small>Output of ncEVE. Each column shows the information about the genomic position, the consHMM conservation states that the variant is in (if you dont know what that means, ignore it for now), and the probabilities that of each letter being present at each position. </small>
+<sub>Output of ncEVE. Each column shows the information about the genomic position, the consHMM conservation states that the variant is in (if you dont know what that means, ignore it for now), and the probabilities that of each letter being present at each position. </sub>
 
 In an analysis, I found out that if I apply PCA on the predictions across all 4 possible letters (ACTG), genomic positions that are in the same state can cluster together.
 ![Figure 4: PCA on ncEVE's predictions for a set of genomic positions (points)](screenshots/pca_simulation_test_data.png)
-<small>Each dot corresponds to a genomic variants. Here, we applied PCA on the ncEVE's prediction as shown in Fig. 2 (each data point is represented in a vector of length 4: ACTG). Dots' color are based on the ConsHMM state of the genomic position. If you don't know what ConsHMM state is: state 1 represents genomic location that is highly conserved throughout evolution, and roughly speaking, the higher the state numbers, the less conserved the genomic location is, and hence less likelly to be pathogenic. For non-biologists: non-conserved positions mean a locations in the genome that is not conserved throughout evolution (i.e. not found in animals other than humans). Conseved postions tend to be more pathogenic bc variants to these positions can be lethal and hence never conserved throughout evolution.</small>
+<sub>Each dot corresponds to a genomic variants. Here, we applied PCA on the ncEVE's prediction as shown in Fig. 2 (each data point is represented in a vector of length 4: ACTG). Dots' color are based on the ConsHMM state of the genomic position. If you don't know what ConsHMM state is: state 1 represents genomic location that is highly conserved throughout evolution, and roughly speaking, the higher the state numbers, the less conserved the genomic location is, and hence less likelly to be pathogenic. For non-biologists: non-conserved positions mean a locations in the genome that is not conserved throughout evolution (i.e. not found in animals other than humans). Conseved postions tend to be more pathogenic bc variants to these positions can be lethal and hence never conserved throughout evolution.</sub>
 
 
 ## Maintenance
 Since this project serves as my own exploration that never panned off to publications, I do not maintain this code and hence do not provide installation instructions. But, if you find that this can serve as starting point for your own research and want to adapt my code/ want updated features to the code, please reach out. 
 
 ## References
-
-- Frazer, J., Notin, P., Dias, M., Gomez, A., Min, J. L., Brock, K., ... & Marks, D. S. (2021). Disease variant prediction with deep generative models of evolutionary data. *Nature Genetics*, 53(6), 759-768. doi:10.1038/s41588-021-00856-2
-
+```
+@article{Frazer2021DiseaseVP,
+  title={Disease variant prediction with deep generative models of evolutionary data.},
+  author={Jonathan Frazer and Pascal Notin and Mafalda Dias and Aidan Gomez and Joseph K Min and Kelly P. Brock and Yarin Gal and Debora S. Marks},
+  journal={Nature},
+  year={2021}
+}
+```
 ## License
 
 This project is licensed under the MIT License.
